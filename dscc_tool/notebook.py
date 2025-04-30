@@ -13,7 +13,7 @@ def temp_chdir(path: Path):
     finally:
         os.chdir(original_dir)
 
-def dscc_tool(command: str, app_path: str):
+def run_dscc_tool(command: str, app_path: str):
     """
     Run any dscc-tool CLI command inside Databricks, from a notebook.
 

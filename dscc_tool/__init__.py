@@ -1,1 +1,1 @@
-from .notebook import dscc_tool
+from .notebook import run_dscc_tool
