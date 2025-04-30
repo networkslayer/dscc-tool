@@ -1,0 +1,5 @@
+fire
+pyyaml
+pyspark
+pytest
+delta-spark

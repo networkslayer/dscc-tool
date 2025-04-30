@@ -1,0 +1,2 @@
+[console_scripts]
+dscc = dscc_tool.cli:main

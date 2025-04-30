@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dscc-tool"
+version = "0.1.0"
+description = "Databricks Security Content Control CLI for packaging and testing apps."
+authors = [
+    { name="Derek King", email="derek.king@databricks.com" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "fire",
+    "pyyaml",
+    "pyspark",      
+    "pytest",       
+    "delta-spark",  
+]
+
+[project.scripts]
+dscc = "dscc_tool.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dscc_packaging*", "dscc_tester*", "dscc_tool*"]

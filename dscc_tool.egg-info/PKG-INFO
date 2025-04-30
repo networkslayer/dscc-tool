@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: dscc-tool
+Version: 0.1.0
+Summary: Databricks Security Content Control CLI for packaging and testing apps.
+Author-email: Derek King <your@email.com>
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fire
+Requires-Dist: pyyaml
+Requires-Dist: pyspark
+Requires-Dist: pytest
+Requires-Dist: delta-spark
+Dynamic: license-file
+
+# Databricks Security Content Tool
+Security Content packaging and testing tool for Databricks.
