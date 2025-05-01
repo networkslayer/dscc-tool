@@ -103,7 +103,7 @@ def extract_dscc_metadata(file_path: str) -> dict:
 
 
 def is_notebook_file(filename: str) -> bool:
-    return filename.endswith(".py", ".dbc", ".ipynb")
+    return filename.endswith((".py", ".dbc", ".ipynb"))
 
 def inject_all_defaults(notebook_path: Path):
 
