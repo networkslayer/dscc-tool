@@ -2,8 +2,52 @@ import yaml
 from dscc_tool.logger import logging
 from pathlib import Path
 from .preset_engine import PresetEngine
+import nbformat
+from nbformat.v4 import new_markdown_cell
 
 logger = logging.getLogger(__name__)
+
+MAGIC_PREFIXES = ("%run", "%pip", "%conda", "%load_ext")
+
+
+def is_magic_cell(cell):
+    if cell.cell_type != "code":
+        return False
+    lines = cell.source.strip().splitlines()
+    return all(any(line.strip().startswith(prefix) for prefix in MAGIC_PREFIXES) for line in lines)
+
+
+def write_metadata_block_ipynb(notebook_path: Path, dscc_meta: dict, test_cases: list):
+    full_metadata = dict(dscc_meta or {})
+    full_metadata["dscc-tests"] = {"tests": test_cases}
+
+    md_lines = ["```yaml"]
+    md_lines.extend(yaml.dump(full_metadata, sort_keys=False).splitlines())
+    md_lines.append("```")
+
+    md_cell = new_markdown_cell(source="\n".join(md_lines))
+
+    nb = nbformat.read(notebook_path, as_version=4)
+
+    insert_idx = 0
+    for i, cell in enumerate(nb.cells):
+        if is_magic_cell(cell):
+            insert_idx = i + 1
+        else:
+            break
+
+    # Prevent duplicate injection
+    if any("dscc:" in (cell.source or "") for cell in nb.cells if cell.cell_type == "markdown"):
+        print(f"⏭️ Skipping {notebook_path.name} (already has dscc block)")
+        return
+
+    nb.cells.insert(insert_idx, md_cell)
+
+    nbformat.write(nb, notebook_path)
+    print(f"✅ Injected YAML metadata block into {notebook_path.name}")
+
+
+
 
 def generate_dscc_metadata(notebook_path, overwrite=False, source_lines=None):
     has_block = any("# MAGIC dscc:" in line for line in source_lines) if source_lines else False
@@ -117,7 +161,11 @@ def inject_all_defaults(notebook_path: Path):
     try:
         preset = PresetEngine.from_path(notebook_path)
         dscc_meta = preset.to_yaml_dict()
-        write_metadata_block(notebook_path, dscc_meta, test_cases=[], source_lines=source_lines)
+        if notebook_path.suffix == ".ipynb":
+            print("Injecting into ipynb")
+            write_metadata_block_ipynb(notebook_path, dscc_meta, test_cases=[])
+        else:
+            write_metadata_block(notebook_path, dscc_meta, test_cases=[], source_lines=source_lines)
         print(f"✅ Injected default YAML into {notebook_path.name}")
     except Exception as e:
         print(f"❌ Failed to inject into {notebook_path.name}: {e}")
