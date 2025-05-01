@@ -212,7 +212,7 @@ def prepare_notebooks(app_path=".", overwrite=False, dry_run=False, noninteracti
 
     print(f"🔍 Scanning {base_path} for notebooks...\n")
 
-    for notebook in base_path.rglob("*."):
+    for notebook in base_path.rglob("*"):
         if not is_notebook_file(notebook.name):
             continue
         if notebook.name.startswith("template_"):
