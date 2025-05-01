@@ -2,21 +2,14 @@ import yaml
 from dscc_tool.logger import logging
 from pathlib import Path
 from .preset_engine import PresetEngine
-import nbformat
-from nbformat.v4 import new_markdown_cell
+from .notebook_io import is_ipynb, write_metadata_block, read_notebook_source_lines
+
 
 logger = logging.getLogger(__name__)
 
-MAGIC_PREFIXES = ("%run", "%pip", "%conda", "%load_ext")
 
 
-def is_magic_cell(cell):
-    if cell.cell_type != "code":
-        return False
-    lines = cell.source.strip().splitlines()
-    return all(any(line.strip().startswith(prefix) for prefix in MAGIC_PREFIXES) for line in lines)
-
-
+"""
 def write_metadata_block_ipynb(notebook_path: Path, dscc_meta: dict, test_cases: list):
     full_metadata = dict(dscc_meta or {})
     full_metadata["dscc-tests"] = {"tests": test_cases}
@@ -45,9 +38,7 @@ def write_metadata_block_ipynb(notebook_path: Path, dscc_meta: dict, test_cases:
 
     nbformat.write(nb, notebook_path)
     print(f"✅ Injected YAML metadata block into {notebook_path.name}")
-
-
-
+"""
 
 def generate_dscc_metadata(notebook_path, overwrite=False, source_lines=None):
     has_block = any("# MAGIC dscc:" in line for line in source_lines) if source_lines else False
@@ -58,7 +49,7 @@ def generate_dscc_metadata(notebook_path, overwrite=False, source_lines=None):
         except ValueError as e:
             print(str(e))
     return {}
-
+"""
 def write_metadata_block(notebook_path, dscc_meta, test_cases, source_lines, overwrite=False):
     import yaml
 
@@ -111,13 +102,14 @@ def write_metadata_block(notebook_path, dscc_meta, test_cases, source_lines, ove
     # then write it back
     with open(notebook_path, "w") as f:
         f.writelines(new_source)
-
+"""
 def extract_dscc_metadata(file_path: str) -> dict:
     """
     Extracts the dscc: metadata block from the first markdown cell in a Databricks notebook (.py format).
     """
-    with open(file_path, "r") as f:
-        lines = f.readlines()
+    #with open(file_path, "r") as f:
+    #    lines = f.readlines()
+    lines = read_notebook_source_lines(file_path)
 
     in_yaml_block = False
     yaml_lines = []
@@ -151,8 +143,9 @@ def is_notebook_file(filename: str) -> bool:
 
 def inject_all_defaults(notebook_path: Path):
 
-    with open(notebook_path) as f:
-        source_lines = f.readlines()
+    #with open(notebook_path) as f:
+    #    source_lines = f.readlines()
+    source_lines = read_notebook_source_lines(notebook_path)
 
     if any("# MAGIC dscc:" in line for line in source_lines):
         print(f"⏭️ Skipping {notebook_path.name} (already annotated)")
@@ -161,11 +154,7 @@ def inject_all_defaults(notebook_path: Path):
     try:
         preset = PresetEngine.from_path(notebook_path)
         dscc_meta = preset.to_yaml_dict()
-        if notebook_path.suffix == ".ipynb":
-            print("Injecting into ipynb")
-            write_metadata_block_ipynb(notebook_path, dscc_meta, test_cases=[])
-        else:
-            write_metadata_block(notebook_path, dscc_meta, test_cases=[], source_lines=source_lines)
+        write_metadata_block(notebook_path, dscc_meta, test_cases=[], source_lines=source_lines)
         print(f"✅ Injected default YAML into {notebook_path.name}")
     except Exception as e:
         print(f"❌ Failed to inject into {notebook_path.name}: {e}")

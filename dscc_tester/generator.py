@@ -1,5 +1,6 @@
 from dscc_tester.parser import extract_tests_from_file
 from dscc_tester.testgen import generate_test_file
+from dscc_packaging.notebook_io import read_notebook_source_lines, discover_notebook_files
 import tempfile
 import os
 import subprocess
@@ -10,9 +11,6 @@ import re
 import warnings
 
 import hashlib
-
-def find_all_detection_notebooks(base_path):
-    return list(pathlib.Path(base_path).rglob("*.py"))
 
 
 def path_to_module(notebook_path, root=None):
@@ -31,35 +29,47 @@ def extract_requirements_from_pip_magics(base_path):
     requirements = set()
     pattern = re.compile(r"%pip install (.+?)(?:\s+#.*)?$", re.IGNORECASE)
 
-    for file in pathlib.Path(base_path).rglob("*.py"):
-        with open(file) as f:
-            for line in f:
-                match = pattern.search(line.strip())
-                if match:
-                    pkgs = match.group(1).split()
-                    cleaned_pkgs = [pkg for pkg in pkgs if not pkg.startswith('-')]
-                    requirements.update(cleaned_pkgs)
+    #for file in pathlib.Path(base_path).rglob("*.py"):
+    #    with open(file) as f:
+    for file in pathlib.Path(base_path).rglob("*"):
+        if file.suffix not in [".py", ".ipynb"]:
+            continue
+        #for line in f:
+        for line in read_notebook_source_lines(file):
+            match = pattern.search(line.strip())
+            if match:
+                pkgs = match.group(1).split()
+                cleaned_pkgs = [pkg for pkg in pkgs if not pkg.startswith('-')]
+                requirements.update(cleaned_pkgs)
 
     return sorted(requirements)
 
 
 def detect_pandas_udf_usage(base_path):
     udf_pattern = re.compile(r"(F\.)?pandas_udf|from pyspark\\.sql\\.functions import .*pandas_udf")
-    for file in pathlib.Path(base_path).rglob("*.py"):
-        with open(file) as f:
-            for line in f:
-                if udf_pattern.search(line):
-                    return True
+    #for file in pathlib.Path(base_path).rglob("*.py"):
+    #    with open(file) as f:
+    #        for line in f:
+    for file in pathlib.Path(base_path).rglob("*"):
+        if file.suffix not in [".py", ".ipynb"]:
+            continue
+        for line in read_notebook_source_lines(file):
+            if udf_pattern.search(line):
+                return True
     return False
 
 
 def detect_delta_usage(base_path):
     delta_pattern = re.compile(r"from\s+delta\.tables\s+import\s+DeltaTable")
-    for file in pathlib.Path(base_path).rglob("*.py"):
-        with open(file) as f:
-            for line in f:
-                if delta_pattern.search(line):
-                    return True
+    #for file in pathlib.Path(base_path).rglob("*.py"):
+    #    with open(file) as f:
+    #        for line in f:
+    for file in pathlib.Path(base_path).rglob("*"):
+        if file.suffix not in [".py", ".ipynb"]:
+            continue
+        for line in read_notebook_source_lines(file):
+            if delta_pattern.search(line):
+                return True
     return False
 
 
@@ -141,10 +151,13 @@ def infer_required_columns_from_source(filepath):
         re.compile(r'\"(.*?)\"\s*(==|!=|in|not in)'),
         re.compile(r"'(.*?)'\s*(==|!=|in|not in)"),
     ]
-    with open(filepath) as f:
-        code = f.read()
-        for pattern in column_patterns:
-            required.update(pattern.findall(code))
+    #with open(filepath) as f:
+    #    code = f.read()
+    code = "\n".join(read_notebook_source_lines(filepath))
+
+    for pattern in column_patterns:
+        required.update(pattern.findall(code))
+
     return sorted(set(x if isinstance(x, str) else x[0] for x in required))
 
 
@@ -181,8 +194,9 @@ def generate_stub_schema_code(columns):
 def rewrite_run_magics(filepath, exec_mode="local"):
     required_columns = infer_required_columns_from_source(filepath)
 
-    with open(filepath, 'r') as f:
-        lines = f.readlines()
+    #with open(filepath, 'r') as f:
+    #    lines = f.readlines()
+    lines = read_notebook_source_lines(filepath)
 
     rewritten = [
         "from pyspark.sql import SparkSession\n",
@@ -326,7 +340,7 @@ def patch_source_tree(app_path, tmpdir):
     patched_root = os.path.join(tmpdir, "patched")
     shutil.copytree(app_path, patched_root, dirs_exist_ok=True)
 
-    for notebook in find_all_detection_notebooks(os.path.join(patched_root, "base")):
+    for notebook in discover_notebook_files(os.path.join(patched_root, "base")):
         rewrite_run_magics(notebook)
 
     ensure_inits(patched_root)
@@ -334,7 +348,7 @@ def patch_source_tree(app_path, tmpdir):
 
 
 def run(app_path, module=None, exec="local"):
-    detection_files = find_all_detection_notebooks(os.path.join(app_path, "base"))
+    detection_files = discover_notebook_files(os.path.join(app_path, "base"))
     print(f"🔍 Found {len(detection_files)} detection notebooks in {app_path}/base")
 
     with tempfile.TemporaryDirectory() as tmpdir:

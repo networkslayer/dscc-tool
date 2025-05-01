@@ -3,8 +3,8 @@ from typing import Dict, Any, List
 import ast
 import yaml
 import logging
-import pathlib
 
+from .notebook_io import read_notebook_source_lines, write_metadata_block
 from .utils import generate_dscc_metadata, write_metadata_block
 
 try:
@@ -83,7 +83,7 @@ def build_test_case(func_name: str, call_args: Dict[str, Any], sample_path: Path
     }
 
 
-
+"""
 def infer_dscc_tests(
     notebook_path: Path,
     dry_run: bool = False,
@@ -151,4 +151,89 @@ def infer_dscc_tests(
     # write metadata and tests together
     write_metadata_block(notebook_path, dscc_meta, test_cases, source_lines, overwrite=overwrite)
 
+    return test_cases
+"""
+
+
+
+def analyze_notebook_ast(tree):
+    detection_functions = {}
+    function_calls = {}
+    function_tables = {}
+    function_columns = {}
+
+    class Analyzer(ast.NodeVisitor):
+        current_function = None
+
+        def visit_FunctionDef(self, node):
+            detection_functions[node.name] = node
+            Analyzer.current_function = node.name
+            function_tables[node.name], function_columns[node.name] = set(), set()
+            self.generic_visit(node)
+            Analyzer.current_function = None
+
+        def visit_Call(self, node):
+            if isinstance(node.func, ast.Attribute) and node.func.attr == 'table':
+                if isinstance(node.func.value, ast.Name) and node.func.value.id == 'spark':
+                    if node.args and isinstance(node.args[0], ast.Constant):
+                        function_tables[Analyzer.current_function].add(node.args[0].value)
+            elif isinstance(node.func, ast.Name) and node.func.id == 'col':
+                if node.args and isinstance(node.args[0], ast.Constant):
+                    function_columns[Analyzer.current_function].add(node.args[0].value)
+            elif isinstance(node.func, ast.Name) and node.func.id in detection_functions:
+                kwargs = {
+                    kw.arg: kw.value.value if isinstance(kw.value, ast.Constant) else None
+                    for kw in node.keywords
+                }
+                function_calls.setdefault(node.func.id, []).append(kwargs)
+            self.generic_visit(node)
+
+    Analyzer().visit(tree)
+    return detection_functions, function_calls, function_tables, function_columns
+
+
+def infer_dscc_tests(
+    notebook_path: Path,
+    dry_run: bool = False,
+    overwrite: bool = False,
+    no_sample: bool = False,
+    noninteractive: bool = False,
+):
+    notebook_path = normalize_notebook_filename(notebook_path)
+    source_lines = read_notebook_source_lines(notebook_path)
+
+    tree = ast.parse("".join([line for line in source_lines if not line.strip().startswith('%')]))
+
+    detection_functions, function_calls, function_tables, function_columns = analyze_notebook_ast(tree)
+
+    dscc_meta = generate_dscc_metadata(notebook_path, overwrite=overwrite, source_lines=source_lines)
+
+    test_cases = []
+    for func_name in detection_functions:
+        calls = function_calls.get(func_name, [{}])
+        for call_args in calls:
+            print(f"\n🚀 Configuring test for `{func_name}`:")
+            input_args = prompt_input_args(call_args) if not noninteractive else call_args
+
+            sample_path = None
+            if not no_sample and spark_available:
+                for table in function_tables.get(func_name, []):
+                    sample_path = get_sample_data(table, func_name, notebook_path, noninteractive)
+
+            expect_block = build_expect_block(noninteractive)
+            test_case = build_test_case(
+                func_name,
+                input_args,
+                sample_path,
+                list(function_tables.get(func_name, [])),
+                list(function_columns.get(func_name, [])),
+                expect_block
+            )
+            test_cases.append(test_case)
+
+    if dry_run:
+        print(yaml.dump({"dscc": dscc_meta.get("dscc", {}), "dscc-tests": {"tests": test_cases}}, sort_keys=False))
+        return test_cases
+
+    write_metadata_block(notebook_path, dscc_meta, test_cases, source_lines, overwrite=overwrite)
     return test_cases
