@@ -1,3 +1,0 @@
-dscc_packaging
-dscc_tester
-dscc_tool
