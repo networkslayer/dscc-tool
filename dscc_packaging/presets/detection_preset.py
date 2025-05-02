@@ -23,7 +23,7 @@ class DetectionPreset(BasePreset):
         "severity": ["low", "medium", "high"],
         "fidelity": ["low", "medium", "high"],
         "validation": ["manual", "automated", "mixed"],
-        "platform": ["linux", "windows", "macos"],
+        "platform": ["linux", "windows", "macos", "databricks", "aws", "azure", "gcp", "kubernetes", "other"],
         "tactic": [],
         "technique": [],
         "sub_technique": [],

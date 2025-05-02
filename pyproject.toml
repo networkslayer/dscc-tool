@@ -14,7 +14,10 @@ requires-python = ">=3.8"
 dependencies = [
     "fire",
     "pyyaml",
-    "pytest"
+    "pytest",
+    "pydantic",
+    "requests",
+    "nbformat"
 ]
 
 [project.scripts]
