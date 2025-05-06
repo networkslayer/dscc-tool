@@ -30,6 +30,17 @@ def inject_default_yaml(app_path="."):
     print("CALLED")
     generator.inject_default_yaml(app_path=app_path)
 
+def export_for_packaging(workspace_path, local_path=None):
+    """
+    Export a Databricks workspace directory for local packaging.
+    Example:
+        python3 -m dscc_tool.cli packaging export_for_packaging --workspace_path /Workspace/Users/me/my_app --local_path ./my_app_export
+    Args:
+        workspace_path (str): Path to the workspace directory (e.g., '/Workspace/Users/me/my_app')
+        local_path (str, optional): Local path to export to. If None, creates a temp directory.
+    """
+    from .generator import export_for_packaging as export_func
+    return export_func(workspace_path, local_path)
 
 def main():
     import fire
@@ -38,6 +49,7 @@ def main():
         "validate_manifest": validate_manifest,
         "prepare_notebooks": prepare_notebooks,
         "inject_default_yaml": inject_default_yaml,
+        "export_for_packaging": export_for_packaging,
     })
 
 # CLI Entry
