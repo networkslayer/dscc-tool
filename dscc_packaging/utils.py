@@ -2,7 +2,7 @@ import yaml
 from dscc_tool.logger import logging
 from pathlib import Path
 from .preset_engine import PresetEngine
-from .notebook_io import is_ipynb, write_metadata_block, read_notebook_source_lines
+from .shared_utils import read_notebook_source_lines, extract_dscc_metadata
 
 
 logger = logging.getLogger(__name__)

@@ -11,6 +11,11 @@ from .utils import inject_all_defaults
 import subprocess
 import sys
 import tempfile
+import os
+import getpass
+# --- Structure validation imports ---
+from dscc_packaging.structure import validate_and_fix_app_structure
+from dscc_packaging.models import AppMetadata
 
 logger = logging.getLogger(__name__)
 VALID_PLATFORMS = [p.value for p in Platform]
@@ -75,26 +80,107 @@ def select_from_options(field, enum_cls, suggestion=None):
         logger.debug("❌ Invalid input. Please enter numbers (e.g. 1,2).")
         return select_from_options(field, enum_cls, suggestion)
 
-def clean_placeholders(meta_dict):
-    cleaned = {}
+def infer_user_name():
+    # Try environment variables
+    for var in ["GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME", "USER", "USERNAME"]:
+        name = os.environ.get(var)
+        if name:
+            return name
+    # Try getpass
+    try:
+        name = getpass.getuser()
+        if name:
+            return name
+    except Exception:
+        pass
+    # Try git config
+    try:
+        result = subprocess.run(["git", "config", "--get", "user.name"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        name = result.stdout.strip()
+        if name:
+            return name
+    except Exception:
+        pass
+    return "Your Name"
+
+def infer_user_email():
+    # Try environment variables
+    for var in ["GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL", "EMAIL", "USEREMAIL"]:
+        email = os.environ.get(var)
+        if email:
+            return email
+    # Try git config
+    try:
+        result = subprocess.run(["git", "config", "--get", "user.email"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        email = result.stdout.strip()
+        if email:
+            return email
+    except Exception:
+        pass
+    return "user@example.com"
+
+def clean_placeholders(meta_dict, app_name=None):
+    # Define the order of fields to process
+    field_order = [
+        "app_friendly_name",
+        "app_name",
+        "author",
+        "version",
+        "release_notes",
+        "description",
+        "content_type",
+        "requirements",
+        "installation",
+        "configuration",
+        "logo",
+        "screenshots"
+    ]
+    
+    # Create a new dict with fields in desired order
+    ordered_dict = {}
+    for key in field_order:
+        if key in meta_dict:
+            ordered_dict[key] = meta_dict[key]
+    
+    # Add any remaining fields
     for key, value in meta_dict.items():
+        if key not in ordered_dict:
+            ordered_dict[key] = value
+    
+    cleaned = {}
+    for key, value in ordered_dict.items():
+        # Skip system fields that should not be prompted for
+        if key in {"release_date", "submitted_at"}:
+            cleaned[key] = value if value is not None else None
+            continue
         if isinstance(value, str) and value.startswith("<") and value.endswith(">"):
             if key == "version":
                 cleaned[key] = prompt(key, suggestion="1.0.0", validator=is_valid_semver)
             elif key == "author":
-                cleaned[key] = prompt(key, suggestion="Your Name")
+                cleaned[key] = prompt(key, suggestion=infer_user_name())
+            elif key == "user_email":
+                cleaned[key] = prompt(key, suggestion=infer_user_email())
             elif key == "app_friendly_name":
-                cleaned[key] = prompt(key, suggestion="My Detection App")
+                # Convert underscores to spaces for friendly name
+                default = app_name.replace("_", " ") if app_name else "My Detection App"
+                cleaned[key] = prompt(key, suggestion=default)
+            elif key == "app_name":
+                # Keep original directory name for app_name
+                default = app_name if app_name else "app_name"
+                cleaned[key] = prompt(key, suggestion=default)
             elif key == "description":
                 cleaned[key] = prompt(key, suggestion="This app does XYZ")
             elif key == "installation":
                 cleaned[key] = prompt(key, suggestion="Run the provided notebook")
             elif key == "configuration":
-                cleaned[key] = prompt(key, suggestion="Set your workspace ID")
+                cleaned[key] = prompt(key, suggestion="Describe how to configure this app (e.g., required permissions, settings, or environment variables)")
             elif key == "release_notes":
                 cleaned[key] = prompt(key, suggestion="Initial release")
             elif key == "logo":
-                logger.debug("📎 Drop your logo into metadata/, then specify filename:")
+                print("\n📎 Please add your app logo to the metadata/ directory before continuing.")
+                print("   - Preferred file types: .png, .jpg, .jpeg")
+                print("   - Recommended: square image, at least 256x256 pixels (e.g., 256x256.png)")
+                print("   - Example: metadata/logo.png\n")
                 cleaned[key] = prompt(key, suggestion="metadata/logo.png")
             else:
                 cleaned[key] = prompt(key, suggestion=value.strip("<>"))
@@ -112,15 +198,12 @@ def clean_placeholders(meta_dict):
                     logger.debug(f"📎 Enter comma-separated filenames for '{key}' (e.g. metadata/screenshots/0.png):")
                     raw = input(f"{key}: ").strip()
                     cleaned[key] = [v.strip() for v in raw.split(",") if v.strip()]
-
                 else:
                     # Generic list fallback
                     raw = input(f"🔧 Enter comma-separated values for '{key}': ").strip()
                     cleaned[key] = [v.strip() for v in raw.split(",") if v.strip()]
             else:
                 cleaned[key] = value
-
-
         elif isinstance(value, dict):
             cleaned[key] = clean_placeholders(value)
         else:
@@ -128,9 +211,10 @@ def clean_placeholders(meta_dict):
     return cleaned
 
 def generate_manifest(app_path: str = ".", output_file: str = "manifest.yaml"):
+    print("CALLED")
     app_path = Path(app_path)
     base_path = app_path / "base"
-    meta_path = app_path / "metadata" / "app_meta.yaml"
+    meta_path = app_path / "metadata" / "meta.yaml"
     
     if not base_path.exists():
         logger.debug(f"❌ base/ directory not found under {app_path}")
@@ -139,13 +223,15 @@ def generate_manifest(app_path: str = ".", output_file: str = "manifest.yaml"):
     logger.debug(f"🔍 Scanning {base_path} for notebooks...")
 
     if not meta_path.exists():
-        logger.debug(f"❌ metadata/app_meta.yaml not found.")
+        logger.debug(f"❌ metadata/meta.yaml not found.")
         return
 
     with open(meta_path) as f:
             raw_meta = yaml.safe_load(f)
 
-    cleaned_meta = clean_placeholders(raw_meta)
+    # Get app name from directory
+    app_name = app_path.resolve().name
+    cleaned_meta = clean_placeholders(raw_meta, app_name=app_name)
 
     # ✅ Write back updated metadata
     with open(meta_path, "w") as f:
@@ -154,7 +240,7 @@ def generate_manifest(app_path: str = ".", output_file: str = "manifest.yaml"):
     logger.debug("💾 Updated metadata/meta.yaml written.")
 
     manifest = {
-        "app": app_path.resolve().name,
+        "app": app_name,
         **cleaned_meta,
         "notebooks": [],
     }
@@ -262,12 +348,14 @@ def check_databricks_cli():
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False, "Databricks CLI is not installed. Please install it first: pip install databricks-cli"
 
-def export_for_packaging(workspace_path: str, local_path: str = None):
+def export_for_packaging(workspace_path: str, local_path: str = None, auto_fix=True, noninteractive=False):
     """
     Export a Databricks workspace directory for local packaging.
     Args:
         workspace_path (str): Path to the workspace directory (e.g., '/Workspace/Users/me/my_app')
         local_path (str, optional): Local path to export to. If None, creates a temp directory.
+        auto_fix (bool): Whether to auto-fix structure issues.
+        noninteractive (bool): Whether to skip prompts.
     Returns:
         str: Path to the exported directory
     """
@@ -283,21 +371,32 @@ def export_for_packaging(workspace_path: str, local_path: str = None):
         print("4. Try again")
         sys.exit(1)
 
+    app_name = os.path.basename(workspace_path.rstrip("/"))
+
     if local_path is None:
-        local_path = tempfile.mkdtemp(prefix="dscc_export_")
-    local_path = Path(local_path)
-    local_path.mkdir(parents=True, exist_ok=True)
+        import tempfile
+        base_dir = tempfile.mkdtemp(prefix="dscc_export_")
+        export_dir = os.path.join(base_dir, app_name)
+    else:
+        # If local_path already ends with app_name, don't duplicate
+        if os.path.basename(os.path.normpath(local_path)) == app_name:
+            export_dir = local_path
+        else:
+            export_dir = os.path.join(local_path, app_name)
+
+    export_dir = Path(export_dir)
+    export_dir.mkdir(parents=True, exist_ok=True)
 
     export_cmd = [
         "databricks",
         "workspace",
         "export_dir",
         workspace_path,
-        str(local_path),
+        str(export_dir),
         "--overwrite"
     ]
 
-    print(f"\n📦 Exporting workspace directory to: {local_path}")
+    print(f"\n📦 Exporting workspace directory to: {export_dir}")
     try:
         result = subprocess.run(
             export_cmd,
@@ -307,57 +406,125 @@ def export_for_packaging(workspace_path: str, local_path: str = None):
             text=True
         )
         print("✅ Export successful!")
-        helper_script = local_path / "package_locally.sh"
-        with open(helper_script, "w") as f:
+        # --- Structure validation and auto-fix ---
+        template_dir = Path(__file__).parent / "template_app"
+        validate_and_fix_app_structure(
+            export_dir,
+            template_dir,
+            AppMetadata,
+            auto_fix=auto_fix,
+            noninteractive=noninteractive,
+            app_name=app_name
+        )
+        # ... rest of export logic (write scripts, README, etc.) ...
+        script_path = Path.cwd() / "package_locally.sh"
+        with open(script_path, "w") as f:
             f.write(f"""#!/bin/bash
 # Helper script to package your DSCC app locally
+# Usage: ./package_locally.sh [dscc-tool options]
+# Example: ./package_locally.sh --noninteractive --no-sample
+
+# Function to clean system files
+clean_system_files() {{
+    local dir="$1"
+    echo "🧹 Cleaning system files..."
+    
+    # macOS files
+    find "$dir" -name ".DS_Store" -type f -delete
+    find "$dir" -name "._*" -type f -delete
+    
+    # Windows files
+    find "$dir" -name "Thumbs.db" -type f -delete
+    
+    # Python files
+    find "$dir" -name "__pycache__" -type d -exec rm -rf {{}} +
+    find "$dir" -name "*.pyc" -type f -delete
+    find "$dir" -name "*.pyo" -type f -delete
+    find "$dir" -name "*.pyd" -type f -delete
+    
+    # Jupyter files
+    find "$dir" -name ".ipynb_checkpoints" -type d -exec rm -rf {{}} +
+    
+    echo "✅ System files cleaned"
+}}
+
 echo "🚀 Starting local packaging process..."
-cd \"{local_path}\"
+cd "{export_dir}"
+
+# Clean system files before starting
+clean_system_files "."
 
 # Check Python version
 python_version=$(python3 --version 2>&1 | cut -d' ' -f2)
-if [[ \"$python_version\" < "3.11" ]]; then
+if [[ "$python_version" < "3.11" ]]; then
     echo "⚠️ Warning: Python 3.11+ is recommended. Current version: $python_version"
 fi
 
 # Install dscc-tool if not already installed
-pip install dscc-tool || pip install -e .
+echo -n "🔍 Checking prerequisites... "
+if pip install dscc-tool > /dev/null 2>&1 || pip install -e . > /dev/null 2>&1; then
+    echo "done."
+else
+    echo "failed! Please check your Python environment."
+    exit 1
+fi
 
-# Run the interactive packaging process
-dscc packaging prepare_notebooks --app-path .
-
-echo "✨ Packaging complete! Your app is ready in: {local_path}"
-echo "📦 To create the final package, run: dscc packaging package --app-path ."
+# Run the packaging process, passing all user arguments
+if dscc packaging prepare_notebooks --app_path "{export_dir}" "$@"; then
+    echo "✅ Notebook preparation complete"
+    
+    # Generate manifest
+    echo "📝 Generating manifest.yaml..."
+    if dscc packaging generate_manifest --app_path "{export_dir}"; then
+        echo "✅ Manifest generated"
+        
+        # Validate manifest
+        echo "🔍 Validating manifest..."
+        if dscc packaging validate_manifest --manifest_path "{export_dir}/manifest.yaml"; then
+            echo "✨ Packaging complete! Your app is ready in: {export_dir}"
+            echo "📦 To create the final package, run: dscc packaging package --app_path {export_dir}"
+        else
+            echo "❌ Manifest validation failed. Please fix the errors above and try again."
+            exit 1
+        fi
+    else
+        echo "❌ Manifest generation failed. Please fix the errors above and try again."
+        exit 1
+    fi
+else
+    echo "❌ Notebook preparation failed. Please fix the errors above and try again."
+    exit 1
+fi
 """)
-        helper_script.chmod(0o755)
-        readme_path = local_path / "README.md"
+        script_path.chmod(0o755)
+        readme_path = export_dir / "README.md"
         with open(readme_path, "w") as f:
             f.write(f"""# DSCC App Packaging Instructions
 
 ## 🚀 Quick Start
 
-1. Open a terminal and navigate to this directory:
+1. Run the packaging script from your current directory (you can pass any dscc-tool options):
    ```bash
-   cd {local_path}
+   ./package_locally.sh --noninteractive --no-sample
    ```
 
-2. Run the packaging script:
+2. The script will automatically change into the app directory:
    ```bash
-   ./package_locally.sh
+   cd {export_dir}
    ```
 
-3. Follow the interactive prompts to complete packaging
+3. Follow the interactive prompts to complete packaging (unless you use --noninteractive)
 
 4. Create the final package:
    ```bash
-   dscc packaging package --app-path .
+   dscc packaging package --app_path .
    ```
 
 ## 📦 What's Included
 
 - Your exported notebooks and files
-- A helper script for packaging
-- This README with instructions
+- A helper script for packaging (in your current directory)
+- This README with instructions (in the app directory)
 
 ## 🔧 Requirements
 
@@ -376,11 +543,11 @@ If you encounter any issues:
 Happy packaging! 🎉
 """)
         print(f"\n✨ Next steps:")
-        print(f"1. Open a terminal and navigate to: {local_path}")
-        print(f"2. Run: ./package_locally.sh")
+        print(f"1. Run: ./package_locally.sh (from your current directory)")
+        print(f"2. The script will cd into: {export_dir}")
         print(f"3. Follow the interactive prompts to complete packaging")
-        print(f"4. After packaging, run: dscc packaging package --app-path .")
-        return str(local_path)
+        print(f"4. After packaging, run: dscc packaging package --app_path . (inside the app directory)")
+        return str(export_dir)
     except subprocess.CalledProcessError as e:
         print("❌ Export failed!")
         print("STDOUT:", e.stdout)
@@ -390,5 +557,5 @@ Happy packaging! 🎉
         print("2. Verify your Databricks CLI configuration")
         print("3. Ensure you have access to the workspace")
         print("4. Try running the export command manually:")
-        print(f"   databricks workspace export_dir {workspace_path} {local_path} --overwrite")
+        print(f"   databricks workspace export_dir {workspace_path} {export_dir} --overwrite")
         raise

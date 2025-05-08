@@ -21,6 +21,18 @@ generate_unittests:
 
 # Packaging Commands
 
+clean_system_files:
+	@echo "🧹 Cleaning system files..."
+	@find $(APP) -name ".DS_Store" -type f -delete
+	@find $(APP) -name "._*" -type f -delete
+	@find $(APP) -name "Thumbs.db" -type f -delete
+	@find $(APP) -name "__pycache__" -type d -exec rm -rf {} +
+	@find $(APP) -name "*.pyc" -type f -delete
+	@find $(APP) -name "*.pyo" -type f -delete
+	@find $(APP) -name "*.pyd" -type f -delete
+	@find $(APP) -name ".ipynb_checkpoints" -type d -exec rm -rf {} +
+	@echo "✅ System files cleaned"
+
 generate_manifest:
 	@echo "📦 Generating manifest.yaml for $(APP) $(ARGS)..."
 	@$(DSCC_CLI) packaging generate_manifest --app_path $(APP) $(ARGS)
@@ -37,7 +49,7 @@ zip:
 	cd $$APP_PARENT && zip -r ../$(ZIP) $$APP_BASENAME > /dev/null
 	@echo "✅ Created: $(ZIP)"
 
-package: generate_manifest validate_manifest zip
+package: generate_manifest validate_manifest clean_system_files zip
 
 
 	

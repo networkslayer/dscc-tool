@@ -5,7 +5,7 @@ import yaml
 import logging
 
 from .notebook_io import read_notebook_source_lines, write_metadata_block
-from .utils import generate_dscc_metadata, write_metadata_block
+from .utils import generate_dscc_metadata
 
 try:
     from pyspark.sql import SparkSession
@@ -65,8 +65,12 @@ def get_sample_data(table_name: str, func_name: str, notebook_path: Path, nonint
 def build_expect_block(noninteractive: bool = False) -> Dict[str, Any]:
     print("📥 Define expectations for this test case.")
     default_count = ">0"
-    count = input(f"✅ Expected row count (e.g., 0, >0) [{default_count}]: ").strip() or default_count
-    json_path = input("📄 Path to expected output .json file (optional): ").strip() or None
+    if noninteractive:
+        count = default_count
+        json_path = None
+    else:
+        count = input(f"✅ Expected row count (e.g., 0, >0) [{default_count}]: ").strip() or default_count
+        json_path = input("📄 Path to expected output .json file (optional): ").strip() or None
     return {
         "count": count,
         "schema": [],
@@ -199,13 +203,16 @@ def infer_dscc_tests(
     no_sample: bool = False,
     noninteractive: bool = False,
 ):
+    
+
     notebook_path = normalize_notebook_filename(notebook_path)
     source_lines = read_notebook_source_lines(notebook_path)
-
-    tree = ast.parse("".join([line for line in source_lines if not line.strip().startswith('%')]))
+    clean_lines = [line for line in source_lines if not line.strip().startswith('%')]
+    
+    #tree = ast.parse("".join([line for line in source_lines if not line.strip().startswith('%')]))
+    tree = ast.parse("".join(clean_lines))
 
     detection_functions, function_calls, function_tables, function_columns = analyze_notebook_ast(tree)
-
     dscc_meta = generate_dscc_metadata(notebook_path, overwrite=overwrite, source_lines=source_lines)
 
     test_cases = []

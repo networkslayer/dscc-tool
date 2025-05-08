@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import re
 import json
@@ -5,7 +6,10 @@ import requests
 from typing import Dict, Any, List
 
 MITRE_ENTERPRISE_URL = "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json"
-CACHE_FILE = Path(".mitre_enterprise_attack.json")
+# Use a user cache directory for the MITRE cache file
+CACHE_DIR = Path(os.path.expanduser("~/.cache/dscc-tool"))
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+CACHE_FILE = CACHE_DIR / "mitre_enterprise_attack.json"
 
 def load_mitre_attack():
     if CACHE_FILE.exists():

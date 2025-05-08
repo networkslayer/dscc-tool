@@ -1,0 +1,23 @@
+app_friendly_name: <app_friendly_name>
+author: <author>
+version: <semantic_version>
+release_notes: <release_notes markdown>
+description: <description>
+content_type:
+- <content_type>
+- <content_type>
+requirements:
+  platform:
+  - <classic>
+  - <serverless>
+  features:
+  - <sql_warehouse>
+  - <jobs>
+  - <serverless_jobs>
+  - <unity_catalog>
+installation: <installation notes>
+configuration: <configuration notes>
+logo: <metadata/logo.png>
+screenshots:
+- <metadata/screenshots/0.png>
+- <metadata/screenshots/1.png>

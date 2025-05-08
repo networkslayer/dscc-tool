@@ -1,8 +1,9 @@
 from pydantic import BaseModel, ValidationError, field_validator, Field
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Set
 from uuid import UUID
 from enum import Enum
 from dscc_tool.logger import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,25 @@ class Feature(str, Enum):
     serverless_jobs = "serverless_jobs"
     unity_catalog = "unity_catalog"
 
+class Category(str, Enum):
+    detection = "DETECTION"
+    malware = "MALWARE"
+    threat = "THREAT"
+    intrusion = "INTRUSION"
+    anomaly = "ANOMALY"
+    policy = "POLICY"
+    special_event = "SPECIAL_EVENT"
+
+class Fidelity(str, Enum):
+    high = "high"
+    medium = "medium"
+    low = "low"
+
+class Severity(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
 # ─────────────────────────────────────
 # App-Level Requirements
 # ─────────────────────────────────────
@@ -46,15 +66,15 @@ class DSCCRequirements(BaseModel):
 # ─────────────────────────────────────
 
 class DSCCDetectionMetadata(BaseModel):
-    name: str
-    description: str
-    fidelity: Literal["high", "medium", "low"]
-    category: Optional[str] = None
-    objective: Optional[List[str]] = None
-    false_positives: Optional[List[str]] = None
-    severity: Optional[str] = None
-    validation: Optional[List[str]] = None
-    tests: Optional[List[str]] = None
+    name: str = Field(..., description="A short, human-readable name for this detection.")
+    description: str = Field(..., description="Describe what the detection does.")
+    fidelity: Fidelity = Field(Fidelity.medium, description="Detection fidelity: high, medium, or low.")
+    category: Category = Field(Category.policy, description="OCSF category for this detection.")
+    objective: Optional[List[str]] = Field(None, description="What is the detection's objective? (e.g., 'Detects suspicious logins')")
+    false_positives: Optional[List[str]] = Field(None, description="Describe possible false positives for this detection.")
+    severity: Optional[Severity] = Field(Severity.medium, description="Severity level for this detection (low, medium, high).")
+    validation: Optional[List[str]] = Field(None, description="Describe how this detection is validated (e.g., test cases, data sources).")
+    tests: Optional[List[str]] = Field(None, description="List of test case names or descriptions for this detection.")
 
 # ─────────────────────────────────────
 # Notebook Metadata (dscc: section)
@@ -130,3 +150,53 @@ class DSCCManifest(BaseModel):
         if v and v.count(".") != 2:
             raise ValueError("App version must follow semantic format MAJOR.MINOR.PATCH")
         return v
+
+class AppStructureSpec(BaseModel):
+    allowed_dirs: Set[str] = Field(default_factory=lambda: {
+        "sample_data", "metadata", "lib", "base", "README.md", "manifest.yaml"
+    })
+    required_metadata_files: Set[str] = {"meta.yaml"}
+
+class Requirements(BaseModel):
+    platform: List[Literal["classic", "serverless"]]
+    features: List[Literal["sql_warehouse", "serverless_jobs", "jobs", "unity_catalog"]]
+
+    @field_validator("platform", "features", mode="before")
+    @classmethod
+    def check_non_empty_lists(cls, v):
+        if not v or not isinstance(v, list):
+            raise ValueError("Must be a non-empty list")
+        return v
+
+    model_config = {
+        "extra": "forbid"
+    }
+
+class AppMetadata(BaseModel):
+    app_name: str
+    app_friendly_name: str
+    author: str
+    user_email: str
+    version: str
+    release_notes: Optional[str] = None
+    description: str
+    content_type: List[Literal["etl", "detection", "dashboard"]]
+    requirements: Requirements
+    installation: str
+    configuration: str
+    submitted_at: Optional[datetime] = None  
+    release_date: Optional[datetime] = None  
+    tags: Optional[List[str]] = Field(default_factory=list)
+    logo: Optional[str] = None
+    screenshots: Optional[List[str]] = []
+
+    @field_validator("content_type", mode="before")
+    @classmethod
+    def check_content_type(cls, v):
+        if not v or not isinstance(v, list):
+            raise ValueError("content_type must be a non-empty list")
+        return v
+
+    model_config = {
+        "extra": "forbid"
+    }
