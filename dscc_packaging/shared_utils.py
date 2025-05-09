@@ -98,4 +98,33 @@ def infer_user_email():
             return email
     except Exception:
         pass
-    return "user@example.com" 
+    return "user@example.com"
+
+def clean_for_yaml(obj):
+    """
+    Recursively convert Enums, PydanticUndefined, and other non-serializable types to YAML-safe values.
+    """
+    import enum
+    try:
+        from pydantic_core import PydanticUndefined
+    except ImportError:
+        PydanticUndefined = type("PydanticUndefined", (), {})()
+    if isinstance(obj, dict):
+        return {k: clean_for_yaml(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_for_yaml(v) for v in obj]
+    elif isinstance(obj, enum.Enum):
+        return obj.value
+    elif str(obj) == "PydanticUndefined":
+        return ""
+    else:
+        return obj
+
+def get_promptable_fields(model_cls):
+    """
+    Return a list of field names from a Pydantic model where json_schema_extra['prompt'] is not False.
+    """
+    return [
+        name for name, field in model_cls.model_fields.items()
+        if (field.json_schema_extra or {}).get("prompt", True)
+    ] 

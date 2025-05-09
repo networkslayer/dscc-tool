@@ -2,8 +2,8 @@ import yaml
 from dscc_tool.logger import logging
 from pathlib import Path
 from .preset_engine import PresetEngine
-from .shared_utils import read_notebook_source_lines, extract_dscc_metadata
-
+from .shared_utils import read_notebook_source_lines, extract_dscc_metadata, clean_for_yaml
+from .notebook_io import write_metadata_block
 
 logger = logging.getLogger(__name__)
 
@@ -154,10 +154,19 @@ def inject_all_defaults(notebook_path: Path):
     try:
         preset = PresetEngine.from_path(notebook_path)
         dscc_meta = preset.to_yaml_dict()
-        write_metadata_block(notebook_path, dscc_meta, test_cases=[], source_lines=source_lines)
+        import pprint
+        print("[DEBUG] dscc_meta to be written:")
+        pprint.pprint(dscc_meta)
+        print("[DEBUG] type(dscc_meta):", type(dscc_meta))
+        cleaned_dscc_meta = clean_for_yaml(dscc_meta)
+        print("[DEBUG] cleaned_dscc_meta to be written:")
+        pprint.pprint(cleaned_dscc_meta)
+        write_metadata_block(notebook_path, cleaned_dscc_meta, test_cases=[], source_lines=source_lines)
         print(f"✅ Injected default YAML into {notebook_path.name}")
     except Exception as e:
         print(f"❌ Failed to inject into {notebook_path.name}: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 

@@ -23,6 +23,17 @@ class Platform(str, Enum):
     classic = "classic"
     serverless = "serverless"
 
+class DetectionPlatform(str, Enum):
+    linux = "linux"
+    windows = "windows"
+    macos = "macos"
+    databricks = "databricks"
+    azure = "azure"
+    aws = "aws"
+    kubernetes = "kubernetes"
+    gcp = "gcp"
+    other = "other"
+
 class Feature(str, Enum):
     sql_warehouse = "sql_warehouse"
     jobs = "jobs"
@@ -44,9 +55,14 @@ class Fidelity(str, Enum):
     low = "low"
 
 class Severity(str, Enum):
-    low = "low"
-    medium = "medium"
     high = "high"
+    medium = "medium"
+    low = "low"
+
+class Taxonomy(str, Enum):
+    mitre = "mitre"
+    nist = "nist"
+    none = "none"
 
 # ─────────────────────────────────────
 # App-Level Requirements
@@ -67,28 +83,32 @@ class DSCCRequirements(BaseModel):
 
 class DSCCDetectionMetadata(BaseModel):
     name: str = Field(..., description="A short, human-readable name for this detection.")
-    description: str = Field(..., description="Describe what the detection does.")
+    description: str = Field(None, description="Describe what the detection does.")
     fidelity: Fidelity = Field(Fidelity.medium, description="Detection fidelity: high, medium, or low.")
     category: Category = Field(Category.policy, description="OCSF category for this detection.")
-    objective: Optional[List[str]] = Field(None, description="What is the detection's objective? (e.g., 'Detects suspicious logins')")
-    false_positives: Optional[List[str]] = Field(None, description="Describe possible false positives for this detection.")
-    severity: Optional[Severity] = Field(Severity.medium, description="Severity level for this detection (low, medium, high).")
-    validation: Optional[List[str]] = Field(None, description="Describe how this detection is validated (e.g., test cases, data sources).")
-    tests: Optional[List[str]] = Field(None, description="List of test case names or descriptions for this detection.")
+    objective: Optional[str] = Field(None, description="What is the detection's objective?")
+    false_positives: Optional[str] = Field("unknown", description="Describe possible false positives for this detection.")
+    severity: Severity = Field(Severity.medium, description="Severity level for this detection (low, medium, high).")
+    #validation: Optional[str] = Field(None, description="Describe how this detection is validated.")
+    #tests: Optional[List[str]] = Field(default_factory=list, description="List of test case names or descriptions for this detection.")
+    taxonomy: Optional[List[Taxonomy]] = Field(default_factory=lambda: ["none"], description="Taxonomy tags (mitre, nist, none).")
+    platform: List[DetectionPlatform] = Field(default_factory=list, description="Target platforms (e.g., linux, windows, databricks, etc.).")
+    tactic: Optional[str] = Field(None, description="MITRE ATT&CK tactic (if applicable).")
+    technique: Optional[str] = Field(None, description="MITRE ATT&CK technique (if applicable).")
+    sub_technique: Optional[str] = Field(None, description="MITRE ATT&CK sub-technique (if applicable).")
 
 # ─────────────────────────────────────
 # Notebook Metadata (dscc: section)
 # ─────────────────────────────────────
 
 class DSCCNotebookMetadata(BaseModel):
-    author: str
-    created: str
-    modified: str
-    version: str
-    content_type: str
-    uuid: str
-    platform: Optional[str] = None
-    detection: Optional[DSCCDetectionMetadata] = None
+    author: str = Field(..., description="Author")
+    created: str = Field(..., description="Created date", json_schema_extra={"prompt": False})
+    modified: str = Field(..., description="Modified date", json_schema_extra={"prompt": False})
+    version: str = Field("1.0.0", description="Semantic version (e.g., 1.0.0)")
+    content_type: List[ContentType] = Field(default_factory=list, description="Content type")
+    uuid: str = Field(..., description="UUID", json_schema_extra={"prompt": False})
+    detection: Optional[DSCCDetectionMetadata] = Field(default=None, description="Detection metadata")
 
     @field_validator("uuid")
     @classmethod

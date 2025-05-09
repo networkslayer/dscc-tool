@@ -4,7 +4,7 @@ import re
 import uuid
 import yaml
 from dscc_packaging.utils import extract_dscc_metadata, is_notebook_file
-from dscc_packaging.models import ContentType, Platform, Feature
+from dscc_packaging.models import ContentType, Platform, Feature, DSCCNotebookMetadata, DSCCDetectionMetadata
 from dscc_tool.logger import logging
 from . import autogen_tests
 from .utils import inject_all_defaults
@@ -16,6 +16,7 @@ import getpass
 # --- Structure validation imports ---
 from dscc_packaging.structure import validate_and_fix_app_structure
 from dscc_packaging.models import AppMetadata
+from dscc_packaging.shared_utils import get_promptable_fields
 
 logger = logging.getLogger(__name__)
 VALID_PLATFORMS = [p.value for p in Platform]

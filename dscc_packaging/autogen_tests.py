@@ -239,7 +239,24 @@ def infer_dscc_tests(
             test_cases.append(test_case)
 
     if dry_run:
-        print(yaml.dump({"dscc": dscc_meta.get("dscc", {}), "dscc-tests": {"tests": test_cases}}, sort_keys=False))
+        print("DEBUG dscc_meta:", dscc_meta)
+        print("DEBUG dscc_meta['dscc']:", dscc_meta.get("dscc", {}))
+        print("DEBUG taxonomy:", dscc_meta.get("dscc", {}).get("taxonomy"))
+        print("DEBUG type of taxonomy:", type(dscc_meta.get("dscc", {}).get("taxonomy")))
+        print("DEBUG taxonomy value:", dscc_meta.get("dscc", {}).get("taxonomy"))
+        print("DEBUG test_cases:", test_cases)
+        print("DEBUG type of test_cases:", type(test_cases))
+        if test_cases:
+            print("DEBUG type of first test_case:", type(test_cases[0]))
+            print("DEBUG first test_case:", test_cases[0])
+        import traceback
+        from dscc_packaging.shared_utils import clean_for_yaml
+        try:
+            cleaned_dscc = clean_for_yaml(dscc_meta.get("dscc", {}))
+            print(yaml.dump({"dscc": cleaned_dscc, "dscc-tests": {"tests": test_cases}}, sort_keys=False))
+        except Exception as e:
+            print("YAML DUMP ERROR:", e)
+            traceback.print_exc()
         return test_cases
 
     write_metadata_block(notebook_path, dscc_meta, test_cases, source_lines, overwrite=overwrite)
