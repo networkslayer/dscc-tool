@@ -141,13 +141,13 @@ def extract_dscc_metadata(file_path: str) -> dict:
 def is_notebook_file(filename: str) -> bool:
     return filename.endswith((".py", ".dbc", ".ipynb"))
 
-def inject_all_defaults(notebook_path: Path):
+def inject_all_defaults(notebook_path: Path, overwrite=False):
 
     #with open(notebook_path) as f:
     #    source_lines = f.readlines()
     source_lines = read_notebook_source_lines(notebook_path)
 
-    if any("# MAGIC dscc:" in line for line in source_lines):
+    if any("# MAGIC dscc:" in line for line in source_lines) and not overwrite:
         print(f"⏭️ Skipping {notebook_path.name} (already annotated)")
         return
 
@@ -161,7 +161,7 @@ def inject_all_defaults(notebook_path: Path):
         cleaned_dscc_meta = clean_for_yaml(dscc_meta)
         print("[DEBUG] cleaned_dscc_meta to be written:")
         pprint.pprint(cleaned_dscc_meta)
-        write_metadata_block(notebook_path, cleaned_dscc_meta, test_cases=[], source_lines=source_lines)
+        write_metadata_block(notebook_path, cleaned_dscc_meta, test_cases=[], source_lines=source_lines, overwrite=overwrite)
         print(f"✅ Injected default YAML into {notebook_path.name}")
     except Exception as e:
         print(f"❌ Failed to inject into {notebook_path.name}: {e}")

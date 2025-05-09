@@ -37,8 +37,8 @@ def prepare_notebooks(app_path=".", overwrite=False, dry_run=False, noninteracti
         no_sample=no_sample
     )
 
-def inject_default_yaml(app_path="."):
-    generator.inject_default_yaml(app_path=app_path)
+def inject_default_yaml(app_path=".", overwrite=False):
+    generator.inject_default_yaml(app_path=app_path, overwrite=overwrite)
 
 def export(
     workspace_path=None,
@@ -78,6 +78,7 @@ def main():
     # inject_default_yaml
     inject_parser = subparsers.add_parser("inject_default_yaml", help="Inject default YAML into all notebooks")
     inject_parser.add_argument("--app_path", default=".", help="Path to app root directory")
+    inject_parser.add_argument("--overwrite", action="store_true", help="Overwrite existing metadata")
 
     # export
     export_parser = subparsers.add_parser("export", help="Export a Databricks workspace directory for local packaging")
@@ -101,7 +102,7 @@ def main():
             no_sample=args.no_sample
         )
     elif args.command == "inject_default_yaml":
-        inject_default_yaml(app_path=args.app_path)
+        inject_default_yaml(app_path=args.app_path, overwrite=args.overwrite)
     elif args.command == "export":
         export(
             workspace_path=args.workspace_path,

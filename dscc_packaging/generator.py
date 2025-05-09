@@ -313,7 +313,7 @@ def prepare_notebooks(app_path=".", overwrite=False, dry_run=False, noninteracti
 
         if inject_defaults:
             print(f"🔧 Injecting default YAML...{notebook}")
-            inject_all_defaults(notebook)
+            inject_all_defaults(notebook, overwrite=overwrite)
             continue
 
         try:
@@ -335,8 +335,8 @@ def prepare_notebooks(app_path=".", overwrite=False, dry_run=False, noninteracti
 
     print(f"🏁 Finished {'yaml' if inject_defaults else 'test'} generation.\n")
 
-def inject_default_yaml(app_path="."):
-    prepare_notebooks(app_path=app_path, inject_defaults=True)
+def inject_default_yaml(app_path=".", overwrite=False):
+    prepare_notebooks(app_path=app_path, inject_defaults=True, overwrite=overwrite)
 
 def check_databricks_cli():
     """Check if Databricks CLI is installed and configured."""
