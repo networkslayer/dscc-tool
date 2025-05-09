@@ -6,9 +6,25 @@ import requests
 from typing import Dict, Any, List
 
 MITRE_ENTERPRISE_URL = "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json"
-# Use a user cache directory for the MITRE cache file
-CACHE_DIR = Path(os.path.expanduser("~/.cache/dscc-tool"))
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_cache_dir():
+    # Detect Databricks
+    in_databricks = any(
+        os.environ.get(var) for var in ["DATABRICKS_RUNTIME_VERSION", "DATABRICKS_HOST"]
+    )
+    if in_databricks:
+        cache_dir = Path("/tmp/dscc-tool")
+    else:
+        cache_dir = Path(os.path.expanduser("~/.cache/dscc-tool"))
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        # Fallback to /tmp if home is not writable
+        cache_dir = Path("/tmp/dscc-tool")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+CACHE_DIR = get_cache_dir()
 CACHE_FILE = CACHE_DIR / "mitre_enterprise_attack.json"
 
 def load_mitre_attack():
