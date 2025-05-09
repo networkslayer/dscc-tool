@@ -155,12 +155,12 @@ def inject_all_defaults(notebook_path: Path, overwrite=False):
         preset = PresetEngine.from_path(notebook_path)
         dscc_meta = preset.to_yaml_dict()
         import pprint
-        print("[DEBUG] dscc_meta to be written:")
-        pprint.pprint(dscc_meta)
-        print("[DEBUG] type(dscc_meta):", type(dscc_meta))
+        #print("[DEBUG] dscc_meta to be written:")
+        #pprint.pprint(dscc_meta)
+        #print("[DEBUG] type(dscc_meta):", type(dscc_meta))
         cleaned_dscc_meta = clean_for_yaml(dscc_meta)
-        print("[DEBUG] cleaned_dscc_meta to be written:")
-        pprint.pprint(cleaned_dscc_meta)
+        #print("[DEBUG] cleaned_dscc_meta to be written:")
+        #pprint.pprint(cleaned_dscc_meta)
         write_metadata_block(notebook_path, cleaned_dscc_meta, test_cases=[], source_lines=source_lines, overwrite=overwrite)
         print(f"✅ Injected default YAML into {notebook_path.name}")
     except Exception as e:

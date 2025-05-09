@@ -1,12 +1,15 @@
-from .base_preset import BasePreset
-from ..mitre_loader import load_mitre_attack
-from dscc_packaging.models import DSCCDetectionMetadata, DSCCNotebookMetadata
 import re
-from dscc_packaging.shared_utils import infer_user_name, infer_user_email, get_promptable_fields
-from datetime import datetime
 import uuid
 from pydantic_core import PydanticUndefined
-from dscc_packaging.model_utils import default_for_field, get_options_from_model, get_validators_from_model, get_help_from_model
+from datetime import datetime
+
+from dscc_packaging.models import DSCCDetectionMetadata, DSCCNotebookMetadata
+from dscc_packaging.shared_utils import infer_user_name, infer_user_email, get_promptable_fields
+from dscc_packaging.model_utils import get_options_from_model
+
+from .base_preset import BasePreset
+from ..mitre_loader import load_mitre_attack
+
 
 class DetectionPreset(BasePreset):
     MODEL = DSCCDetectionMetadata
@@ -23,20 +26,7 @@ class DetectionPreset(BasePreset):
         super().__init__(notebook_path)
         # Only keep detection-specific fields
         self.fields = {k: v for k, v in self.fields.items() if k in DSCCDetectionMetadata.model_fields}
-
-        # Set a default name from the notebook filename if not already set or if PydanticUndefined
-        name_val = self.fields.get("name")
-        if not isinstance(name_val, str) or name_val in (None, "<name>", "", PydanticUndefined):
-            stem = notebook_path.stem
-            clean_name = re.sub(r'[_\-]+', ' ', stem).title()
-            self.fields["name"] = clean_name
-
-        # Fill in all model defaults for missing fields
-        model_defaults = self.MODEL().model_dump()
-        for k, v in model_defaults.items():
-            if k not in self.fields or self.fields[k] is None:
-                self.fields[k] = v
-
+        #print("DEBUG Metadata before filtering:", DSCCDetectionMetadata.model_fields)
         # Load MITRE data for dynamic options
         all_tactics, all_techniques, all_sub_techniques = load_mitre_attack()
         self._all_tactics = all_tactics
@@ -47,10 +37,27 @@ class DetectionPreset(BasePreset):
         self.OPTIONS["technique"] = [f"{t['id']} {t['name']}" for t in all_techniques]
         self.OPTIONS["sub_technique"] = [f"{s['id']} {s['name']}" for s in all_sub_techniques]
 
+        # Set a default name from the notebook filename if not already set or if PydanticUndefined
+        #print("DEBUG DetectionPreset.__init__ notebook_path:", notebook_path)
+        #print("DEBUG DetectionPreset.__init__ self.fields:", self.fields)
+
+        name_val = self.fields.get("name")
+        #print("DEBUG name_val:", name_val)
+        if name_val in (None, "<name>", "", PydanticUndefined):
+            stem = notebook_path.stem
+            clean_name = re.sub(r'[_\-]+', ' ', stem).title()
+            self.fields["name"] = clean_name
+
+        # Fill in all model defaults for missing fields
+        #model_defaults = self.MODEL().model_dump()
+        #for k, v in model_defaults.items():
+       #     if k not in self.fields or self.fields[k] is None:
+       #         self.fields[k] = v
+
     def to_yaml_dict(self):
-        print("DEBUG DetectionPreset.to_yaml_dict self.fields:", self.fields)
+        #print("DEBUG DetectionPreset.to_yaml_dict self.fields:", self.fields)
         taxonomy = self.fields.get("taxonomy", [])
-        print("DEBUG taxonomy before normalization:", taxonomy)
+        #print("DEBUG taxonomy before normalization:", taxonomy)
         # Always treat taxonomy as a list
         if taxonomy is None:
             taxonomy = []
