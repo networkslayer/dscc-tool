@@ -81,7 +81,35 @@ def select_from_options(field, enum_cls, suggestion=None):
         logger.debug("❌ Invalid input. Please enter numbers (e.g. 1,2).")
         return select_from_options(field, enum_cls, suggestion)
 
+def get_databricks_user_email():
+    # Try Databricks environment variables
+    for var in ["DATABRICKS_USERNAME", "DATABRICKS_USER"]:
+        val = os.environ.get(var)
+        if val:
+            return val
+    # Try Databricks notebook context (if available)
+    try:
+        import IPython
+        ipy = IPython.get_ipython()
+        if ipy:
+            dbutils = ipy.user_ns.get("dbutils")
+            if dbutils:
+                return dbutils.notebook.entry_point.getDbutils().notebook().getContext().userName().get()
+    except Exception:
+        pass
+    return None
+
+def infer_user_email():
+    email = get_databricks_user_email()
+    if email and "@" in email:
+        return email
+    # Fallbacks
+    return os.environ.get("EMAIL") or "user@example.com"
+
 def infer_user_name():
+    email = get_databricks_user_email()
+    if email and "@" in email:
+        return email.split("@")[0]
     # Try environment variables
     for var in ["GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME", "USER", "USERNAME"]:
         name = os.environ.get(var)
@@ -89,6 +117,7 @@ def infer_user_name():
             return name
     # Try getpass
     try:
+        import getpass
         name = getpass.getuser()
         if name:
             return name
@@ -96,6 +125,7 @@ def infer_user_name():
         pass
     # Try git config
     try:
+        import subprocess
         result = subprocess.run(["git", "config", "--get", "user.name"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         name = result.stdout.strip()
         if name:
@@ -103,22 +133,6 @@ def infer_user_name():
     except Exception:
         pass
     return "Your Name"
-
-def infer_user_email():
-    # Try environment variables
-    for var in ["GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL", "EMAIL", "USEREMAIL"]:
-        email = os.environ.get(var)
-        if email:
-            return email
-    # Try git config
-    try:
-        result = subprocess.run(["git", "config", "--get", "user.email"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        email = result.stdout.strip()
-        if email:
-            return email
-    except Exception:
-        pass
-    return "user@example.com"
 
 def clean_placeholders(meta_dict, app_name=None):
     # Define the order of fields to process
