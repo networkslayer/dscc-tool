@@ -41,6 +41,12 @@ class DetectionPreset(BasePreset):
             clean_name = re.sub(r'[_\-]+', ' ', stem).title()
             self.fields["name"] = clean_name
 
+        # Fill in all model defaults for missing fields
+        model_defaults = self.MODEL().model_dump()
+        for k, v in model_defaults.items():
+            if k not in self.fields or self.fields[k] is None:
+                self.fields[k] = v
+
     def to_yaml_dict(self):
         print("DEBUG DetectionPreset.to_yaml_dict self.fields:", self.fields)
         taxonomy = self.fields.get("taxonomy", [])
