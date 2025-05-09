@@ -24,19 +24,9 @@ class DetectionPreset(BasePreset):
         # Only keep detection-specific fields
         self.fields = {k: v for k, v in self.fields.items() if k in DSCCDetectionMetadata.model_fields}
 
-        # Load MITRE data for dynamic options
-        all_tactics, all_techniques, all_sub_techniques = load_mitre_attack()
-        self._all_tactics = all_tactics
-        self._all_techniques = all_techniques
-        self._all_sub_techniques = all_sub_techniques
-        self.OPTIONS = get_options_from_model(DSCCDetectionMetadata)
-        self.OPTIONS["tactic"] = all_tactics
-        self.OPTIONS["technique"] = [f"{t['id']} {t['name']}" for t in all_techniques]
-        self.OPTIONS["sub_technique"] = [f"{s['id']} {s['name']}" for s in all_sub_techniques]
-
         # Set a default name from the notebook filename if not already set or if PydanticUndefined
         name_val = self.fields.get("name")
-        if name_val in (None, "<name>", "", PydanticUndefined):
+        if not isinstance(name_val, str) or name_val in (None, "<name>", "", PydanticUndefined):
             stem = notebook_path.stem
             clean_name = re.sub(r'[_\-]+', ' ', stem).title()
             self.fields["name"] = clean_name
@@ -46,6 +36,16 @@ class DetectionPreset(BasePreset):
         for k, v in model_defaults.items():
             if k not in self.fields or self.fields[k] is None:
                 self.fields[k] = v
+
+        # Load MITRE data for dynamic options
+        all_tactics, all_techniques, all_sub_techniques = load_mitre_attack()
+        self._all_tactics = all_tactics
+        self._all_techniques = all_techniques
+        self._all_sub_techniques = all_sub_techniques
+        self.OPTIONS = get_options_from_model(DSCCDetectionMetadata)
+        self.OPTIONS["tactic"] = all_tactics
+        self.OPTIONS["technique"] = [f"{t['id']} {t['name']}" for t in all_techniques]
+        self.OPTIONS["sub_technique"] = [f"{s['id']} {s['name']}" for s in all_sub_techniques]
 
     def to_yaml_dict(self):
         print("DEBUG DetectionPreset.to_yaml_dict self.fields:", self.fields)
